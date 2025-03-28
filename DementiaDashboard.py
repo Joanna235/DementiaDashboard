@@ -5,7 +5,7 @@ import os
 import io
 import plotly.express as px
 import seaborn as sns
-import matplotlib.pyplot as pltimport 
+import matplotlib.pyplot as plt
 
 
 # External stylesheets
@@ -175,6 +175,21 @@ app.layout = html.Div(
     ],
 )
 
+def feature_distribution(df, feature):
+    if feature not in df.columns:
+        raise ValueError(f"{feature} not found in dataframe" )
+
+    if df[feature].dtype in ["object", "category"]:
+        value_counts = df[feature].value_counts().reset_index()
+        value_counts.columns = [feature, "count"]
+        fig = px.bar(value_counts, x=feature, y="count", title=f"Counts by {feature}" )
+
+        return fig, value_counts
+    
+    else:
+        fig = px.histogram(df, x=feature, nbins=10, title=f"Counts by {feature}")
+
+        return fig, None
 
 uploaded_datasets = {}
 
@@ -313,37 +328,26 @@ def show_sample_size_dist(file_name, selected_feature):
 
     if selected_feature not in df.columns:
         return html.Div("Selected feature not found in dataset")
-    
-    # Show the distrubion of categorical features 
-    if df[selected_feature].dtype in ['object', 'category']:
-        value_counts = df[selected_feature].value_counts().reset_index()
-        value_counts.columns = [selected_feature, "count"]
 
-        fig = px.bar(value_counts,
-            x=selected_feature,y="count",
-            labels={selected_feature: selected_feature, "count": "Count"},
-            title=f"{selected_feature} Distribution")
-        
-        table = dash_table.DataTable(
-            data=value_counts.to_dict("records"),
-            columns=[{"name": col, "id": col} for col in value_counts.columns],
+    
+    try: 
+        fig, table_data = feature_distribution(df, selected_feature)
+    except ValueError as e:
+        return html.Div(str(e))
+    
+    table = dash_table.DataTable(
+            data=table_data.to_dict("records"),
+            columns=[{"name": col, "id": col} for col in table_data.columns],
             style_table={"margin-top": '20px', 'overflowX': 'auto'},
             style_cell={'textAlign': 'left', 'padding': '10px'},
             style_header={'backgroundColor': 'lightgrey', 'fontWeight': 'bold'}
-        )
+    ) if table_data is not None else None
 
     
-    # Show the distribuion of numerical features 
-    else:
-        fig = px.histogram(df, x=selected_feature, nbins=10, 
-                            title=f"{selected_feature} Distribution")
-
-        table = None
-
-
     return html.Div([
-        dcc.Graph(figure=fig), table])
+        dcc.Graph(figure=fig), table 
 
+    ])
 
 # Callback for showing missing data 
 @app.callback(
